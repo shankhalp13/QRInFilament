@@ -9,9 +9,14 @@ use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Actions\Action;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Support\Facades\Response;
+
+use Dompdf\Dompdf;
+use Dompdf\Options;
 
 class ItemResource extends Resource
 {
@@ -58,6 +63,19 @@ class ItemResource extends Resource
             ->actions([
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
+                Action::make('View QR Code')
+                    ->icon('heroicon-o-qr-code')
+                    ->url(fn (Item $record): string => static::getUrl('qr-code', ['record' => $record])),
+                // ->openUrlInNewTab(),
+                Action::make('Download QR Code PDF')
+                    ->icon('heroicon-o-download')
+                    ->action(function (Item $record) {
+                        $pdfContent = $this->generatePdfWithQrCode($record->id);
+                        return Response::make($pdfContent, 200, [
+                            'Content-Type' => 'application/pdf',
+                            'Content-Disposition' => 'attachment; filename="qr-code-item-' . $record->id . '.pdf"',
+                        ]);
+                    }),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -80,6 +98,7 @@ class ItemResource extends Resource
             'create' => Pages\CreateItem::route('/create'),
             'view' => Pages\ViewItem::route('/{record}'),
             'edit' => Pages\EditItem::route('/{record}/edit'),
+            'qr-code' => Pages\ViewItemQRCode::route('/{record}/qr-code'),
         ];
     }
 }
