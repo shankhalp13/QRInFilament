@@ -13,10 +13,12 @@ use Filament\Tables\Actions\Action;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Response;
-
+use App\Services\PdfService;
 use Dompdf\Dompdf;
 use Dompdf\Options;
+use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class ItemResource extends Resource
 {
@@ -68,13 +70,15 @@ class ItemResource extends Resource
                     ->url(fn (Item $record): string => static::getUrl('qr-code', ['record' => $record])),
                 // ->openUrlInNewTab(),
                 Action::make('Download QR Code PDF')
-                    ->icon('heroicon-o-download')
+                    ->icon('heroicon-o-arrow-down-tray')
                     ->action(function (Item $record) {
-                        $pdfContent = $this->generatePdfWithQrCode($record->id);
-                        return Response::make($pdfContent, 200, [
-                            'Content-Type' => 'application/pdf',
-                            'Content-Disposition' => 'attachment; filename="qr-code-item-' . $record->id . '.pdf"',
-                        ]);
+                        $pdfService = app(PdfService::class);
+                        $pdfContent = $pdfService->generatePdfWithQrCode($record->id);
+                        Log::info('PDF Content Size:', ['Here size' => strlen($pdfContent)]);
+
+                        return response()->streamDownload(function () use ($pdfContent) {
+                            echo $pdfContent;
+                        }, 'qr-code-item-' . $record->id . '.pdf');
                     }),
             ])
             ->bulkActions([
@@ -83,6 +87,47 @@ class ItemResource extends Resource
                 ]),
             ]);
     }
+    // public function generatePdfWithQrCode($recordId)
+    // {
+    //     // Generate QR code image in PNG format
+    //     $qrCodeImage = QrCode::format('png')->size(256)->generate('Item-' . $recordId);
+    //     Log::info('$qrCodeImage');
+    //     // Encode QR code image to base64
+    //     $encodedQrCodeImage = base64_encode($qrCodeImage);
+    //     Log::info('$encodedQrCodeImage');
+
+    //     // Log the base64 encoded QR code image for debugging
+    //     Log::info('Base64 QR Code Image:', ['image' => $encodedQrCodeImage]);
+
+    //     // Initialize Dompdf with options
+    //     $options = new Options();
+    //     $options->set('defaultFont', 'Arial');
+    //     $options->set('isHtml5ParserEnabled', true); // Enables HTML5 support
+    //     $options->set('isPhpEnabled', true); // Enables PHP support if needed
+
+    //     $dompdf = new Dompdf($options);
+
+    //     // Generate HTML content for the PDF
+    //     $html = '<html><body>';
+    //     $html .= '<h1>QR Code for Item-' . htmlspecialchars($recordId, ENT_QUOTES, 'UTF-8') . '</h1>';
+    //     $html .= '<img src="data:image/png;base64,' . htmlspecialchars($encodedQrCodeImage, ENT_QUOTES, 'UTF-8') . '">';
+    //     $html .= '</body></html>';
+
+    //     // Log the HTML content for debugging
+    //     Log::info('HTML Content:', ['html' => $html]);
+
+    //     // Load HTML content into Dompdf
+    //     $dompdf->loadHtml($html);
+
+    //     // (Optional) Set paper size and orientation
+    //     $dompdf->setPaper('A4', 'portrait');
+
+    //     // Render PDF (first pass is to detect the PDF size)
+    //     $dompdf->render();
+
+    //     // Output PDF as a string
+    //     return $dompdf->output();
+    // }
 
     public static function getRelations(): array
     {
